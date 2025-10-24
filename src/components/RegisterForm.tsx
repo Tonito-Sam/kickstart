@@ -28,13 +28,17 @@ export default function RegisterForm({ onSuccess }: { onSuccess?: (ticketUrl: st
     }
     setLoading(true);
     try {
+      // Use Vite runtime env for API base so the frontend can call the live server
+      // when deployed elsewhere (e.g. https://kickstartevents.co.za).
+      const API_BASE = (import.meta as any).env?.VITE_API_BASE || '';
       // Open windows synchronously as part of the click user-gesture so browsers
       // are less likely to block them. We'll navigate them once we have the
       // server ticket URL and a constructed WhatsApp URL.
       const ticketWin = window.open('', '_blank');
       const whatsappWin = window.open('', '_blank');
 
-      const res = await fetch('/register', {
+      const url = `${API_BASE.replace(/\/$/, '')}/register`;
+      const res = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(form),
@@ -45,7 +49,8 @@ export default function RegisterForm({ onSuccess }: { onSuccess?: (ticketUrl: st
       if (onSuccess && body.ticketUrl) onSuccess(body.ticketUrl);
 
       // build message for WhatsApp
-      const plain = `Hi, I registered for ${process.env.REACT_APP_EVENT_TITLE || 'Kickstart 2026'}\nName: ${form.fullname}\nEmail: ${form.email}\nPhone: ${form.phone}\nSector: ${form.sector || '-'}\nRole: ${form.role || '-' }\nTicket: ${body.ticketUrl || ''}`;
+  const eventTitle = (import.meta as any).env?.VITE_EVENT_TITLE || 'Kickstart 2026';
+  const plain = `Hi, I registered for ${eventTitle}\nName: ${form.fullname}\nEmail: ${form.email}\nPhone: ${form.phone}\nSector: ${form.sector || '-'}\nRole: ${form.role || '-' }\nTicket: ${body.ticketUrl || ''}`;
 
       // organiser phone
       const organiser = (window as any).__KICKSTART_ORGANISER_PHONE || '+27615266887';
