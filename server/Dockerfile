@@ -21,12 +21,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 
-# Copy package files and install production deps in the server folder
-COPY server/package*.json ./server/
-RUN cd server && npm install --production
+# Copy package files and install production deps
+# When Render builds with Root Directory = server the build context is the server folder,
+# so package*.json are available at the Docker build root. Copy them and install.
+COPY package*.json ./
+RUN npm install --production
 
-# Copy the server source
-COPY server /app
+# Copy the server source into the image
+COPY . /app
 
 # Expose the port the app listens on
 ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
