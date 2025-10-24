@@ -1,0 +1,111 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Ticket</title>
+  <style>
+    body { font-family: Arial, Helvetica, sans-serif; margin: 0; padding: 24px; color: #111; }
+    /* A5 ticket layout */
+    .ticket { border: 2px dashed #222; padding: 20px; height: 100%; box-sizing: border-box; display: flex; flex-direction: column; justify-content: space-between; }
+    /* Header centered with logo above title */
+    .header { display:flex; flex-direction:column; align-items:center; gap:8px; text-align:center }
+    /* logo: remove visible container/background; keep image centered and larger */
+    .logo { display:block; width:auto; height:auto; }
+    .logo img { display:block; width:120px; max-width:30%; height:auto; object-fit:contain }
+    h1 { font-size:24px; margin:0 }
+    .meta { margin-top:6px; color:#333 }
+    .info { margin-top:18px; display:flex; gap:12px }
+    .col { flex:1 }
+    .label { font-weight:700; font-size:12px; color:#444 }
+    .val { font-size:18px; margin-top:6px }
+    /* larger attendee name & role for visibility on badges */
+    .attendee { font-size:36px; font-weight:700; letter-spacing:0.2px; line-height:1 }
+    .role { font-size:20px; font-weight:600; color:#222; margin-top:6px }
+    .footer { font-size:12px; color:#666; margin-top:18px }
+
+    /* Responsive adjustments for narrow screens (mobile) */
+    @media (max-width:480px) {
+      .logo img { width:88px; max-width:40% }
+      .attendee { font-size:28px }
+      .role { font-size:18px }
+      .info { flex-direction:column }
+      .ticket { padding:12px }
+    }
+  </style>
+</head>
+<body>
+  <div class="ticket" style="width:148mm;height:210mm;">
+    <div>
+      <div class="header">
+        <div class="logo"><img src="{{logoDataUrl}}" alt="logo" /></div>
+        <div>
+          <h1>{{eventTitle}}</h1>
+          <div class="meta">{{eventDate}} · {{eventVenue}}</div>
+        </div>
+      </div>
+
+      <div class="info">
+              <div class="col">
+          <div class="label">Name</div>
+          <div class="val attendee">{{fullname}}</div>
+        </div>
+        <div class="col">
+          <div class="label">Role / Sector</div>
+          <div class="val role">{{role}} · {{sector}}</div>
+        </div>
+      </div>
+
+      <div style="margin-top:16px">
+        <div class="label">Email</div>
+        <div class="val">{{email}}</div>
+        <div style="margin-top:8px" class="label">Phone</div>
+        <div class="val">{{phone}}</div>
+      </div>
+    </div>
+
+    <div class="footer">Present this ticket at the registration desk. Printed or digital copies accepted.</div>
+    <div style="margin-top:12px;text-align:center">
+      <div style="display:inline-block;background:#f8fafc;padding:8px;border-radius:8px">
+        <img src="{{qrDataUrl}}" alt="QR" style="width:160px;height:160px;display:block;margin:6px auto;" />
+        <div style="font-size:11px;color:#444;margin-top:6px">{{ticketId}}</div>
+      </div>
+    </div>
+  </div>
+  
+  <script>
+    // Ensure external links (including WhatsApp) open in a new tab and use safe rel
+    (function(){
+      // Make sure all anchors that look external open in a new tab
+      var anchors = document.querySelectorAll('a');
+      anchors.forEach(function(a){
+        try {
+          var href = a.getAttribute('href');
+          if(!href) return;
+          // Normalize whatsapp links: if user provided phone or message through data attributes, prefer wa.me
+          if(a.classList.contains('whatsapp') || href.indexOf('whatsapp:') === 0 || href.indexOf('api.whatsapp.com') !== -1 || href.indexOf('wa.me') !== -1){
+            // If href is a plain phone (e.g. +27123456789) stored in data-phone, convert
+            if(!href.match(/^https?:\/\//)){
+              // leave existing href if it's already well-formed
+            }
+            // ensure target & rel
+            a.setAttribute('target','_blank');
+            a.setAttribute('rel','noopener noreferrer');
+            // for mobile fallback, open by clicking via window.open if normal navigation fails
+            a.addEventListener('click', function(e){
+              // allow normal behaviour; but ensure new window opens
+              var win = window.open(a.href, '_blank');
+              if(win) win.focus();
+              e.preventDefault();
+            });
+          }
+          // For other external links with target blank, ensure rel
+          if(a.getAttribute('target') === '_blank'){
+            a.setAttribute('rel','noopener noreferrer');
+          }
+        } catch(err){ /* ignore */ }
+      });
+    })();
+  </script>
+</body>
+</html>
