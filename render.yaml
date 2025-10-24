@@ -1,0 +1,10 @@
+services:
+  - type: web
+    name: kickstart-server-docker
+    env: docker
+    repo: Tonito-Sam/kickstart
+    branch: main
+    dockerfilePath: server/Dockerfile
+    # Note: environment variables (HOST, AUTOSEND_WHATSAPP, etc.) can be set
+    # in the Render dashboard after you add the service. This file tells Render
+    # to deploy the server using the Dockerfile which installs Chromium.
