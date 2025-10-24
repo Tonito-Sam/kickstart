@@ -8,3 +8,12 @@ services:
     # Note: environment variables (HOST, AUTOSEND_WHATSAPP, etc.) can be set
     # in the Render dashboard after you add the service. This file tells Render
     # to deploy the server using the Dockerfile which installs Chromium.
+    envVars:
+      - key: AUTOSEND_WHATSAPP
+        value: "true"
+      - key: PUPPETEER_EXECUTABLE_PATH
+        value: "/usr/bin/chromium"
+      - key: PUPPETEER_USER_DATA_DIR
+        value: "/tmp/puppeteer_profile"
+      - key: PORT
+        value: "3333"
