@@ -383,6 +383,44 @@ app.get('/ticket/:name', (req, res) => {
   res.sendFile(file);
 });
 
+// Admin test endpoints — useful to validate DB and SMTP from the deployed host.
+// If ADMIN_KEY is set in env, requests must include ?key=ADMIN_KEY. If ADMIN_KEY is not set,
+// endpoints are accessible (useful for quick testing) but a warning is logged.
+function checkAdminKey(req) {
+  const adminKey = process.env.ADMIN_KEY;
+  if (!adminKey) return { ok: true, warning: 'ADMIN_KEY not set; admin endpoints are open' };
+  if (req.query && req.query.key === adminKey) return { ok: true };
+  return { ok: false };
+}
+
+app.get('/admin/test-db', async (req, res) => {
+  const k = checkAdminKey(req);
+  if (!k.ok) return res.status(401).json({ error: 'unauthorized' });
+  if (k.warning) console.warn(k.warning);
+  try {
+    const [rows] = await dbPool.query('SELECT 1 AS ok');
+    res.json({ ok: true, rows });
+  } catch (e) {
+    console.error('DB test failed', e && e.message ? e.message : e);
+    res.status(500).json({ ok: false, error: String(e) });
+  }
+});
+
+app.get('/admin/test-email', async (req, res) => {
+  const k = checkAdminKey(req);
+  if (!k.ok) return res.status(401).json({ error: 'unauthorized' });
+  if (k.warning) console.warn(k.warning);
+  const to = req.query.email || process.env.SMTP_USER || process.env.EMAIL_FROM;
+  if (!to) return res.status(400).json({ ok: false, error: 'no recipient specified and no SMTP_USER/EMAIL_FROM configured' });
+  try {
+    await sendEmailWithAttachment(to, 'Kickstart SMTP Test', 'This is a test email from the Kickstart server.', null);
+    res.json({ ok: true, to });
+  } catch (e) {
+    console.error('Email test failed', e && e.message ? e.message : e);
+    res.status(500).json({ ok: false, error: String(e) });
+  }
+});
+
 app.post('/register', async (req, res) => {
   try {
     console.log('Incoming register request', req.body);
