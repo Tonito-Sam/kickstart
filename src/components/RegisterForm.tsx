@@ -28,20 +28,8 @@ export default function RegisterForm({ onSuccess }: { onSuccess?: (ticketUrl: st
     }
     setLoading(true);
     try {
-      // Use Vite runtime env for API base so the frontend can call the live server
-      // when deployed elsewhere (e.g. https://kickstartevents.co.za).
-      const API_BASE = (import.meta as any).env?.VITE_API_BASE || '';
-  // Detect mobile early so we can choose a device-friendly flow.
-  const isMobile = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent || '');
-
-  // On desktop we open blanks synchronously (browsers tolerate multiple
-  // windows/tabs opened from a click). On mobile we avoid multiple popups
-  // because mobile browsers often block or merge them — instead we'll
-  // prefer the native share sheet or navigate the current tab to WhatsApp.
-  const ticketWin = isMobile ? null : window.open('', '_blank');
-  const whatsappWin = isMobile ? null : window.open('', '_blank');
-
-      const url = `${API_BASE.replace(/\/$/, '')}/register`;
+      const PHP_BASE = (import.meta as any).env?.VITE_PHP_API_BASE || '/server';
+      const url = `${PHP_BASE.replace(/\/$/, '')}/register.php`;
       const res = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -49,100 +37,9 @@ export default function RegisterForm({ onSuccess }: { onSuccess?: (ticketUrl: st
       });
       const body = await res.json();
       if (!res.ok) throw new Error(body?.error || 'Registration failed');
-      setTicketUrl(body.ticketUrl || null);
-      if (onSuccess && body.ticketUrl) onSuccess(body.ticketUrl);
-
-      // build message for WhatsApp
-    const eventTitle = (import.meta as any).env?.VITE_EVENT_TITLE || 'Kickstart 2026';
-    const plain = `Hi, I registered for ${eventTitle}\nName: ${form.fullname}\nEmail: ${form.email}\nPhone: ${form.phone}\nSector: ${form.sector || '-'}\nRole: ${form.role || '-' }\nTicket: ${body.ticketUrl || ''}`;
-
-      // organiser phone
-      const organiser = (window as any).__KICKSTART_ORGANISER_PHONE || '+27615266887';
-      const phoneDigits = organiser.replace(/[^0-9]/g, '');
-      const encoded = encodeURIComponent(plain);
-      const whatsappUrl = isMobile
-        ? `https://wa.me/${phoneDigits}?text=${encoded}`
-        : `https://web.whatsapp.com/send?phone=${phoneDigits}&text=${encoded}`;
-
-      // Device-aware flow:
-      if (isMobile) {
-        // 1) Prefer the Web Share API (opens native share sheet where WhatsApp
-        //    will be an option). This is the best UX on mobile.
-        if ((navigator as any).share) {
-          try {
-            await (navigator as any).share({ title: eventTitle, text: plain, url: body.ticketUrl });
-            // Shared successfully (or user cancelled) — stop here.
-            return;
-          } catch (e) {
-            // share failed or was cancelled; fall through to fallback behavior
-          }
-        }
-
-        // 2) Fallback: try to open the ticket in a new tab (anchor click) and
-        //    then navigate the current tab to the WhatsApp URL so the OS opens
-        //    the WhatsApp app. We do this synchronously (no awaits) to reduce
-        //    the chance of pop-up blocking.
-        try {
-          if (body.ticketUrl) {
-            const a = document.createElement('a');
-            a.href = body.ticketUrl;
-            a.target = '_blank';
-            // optional 'rel' omitted intentionally to allow app handoff on some mobile UAs
-            document.body.appendChild(a);
-            a.click();
-            a.remove();
-          }
-        } catch (e) {
-          // ignore anchor failure
-        }
-
-        // Navigate current tab to WhatsApp (this will open the app on many devices)
-        try {
-          window.location.href = whatsappUrl;
-        } catch (e) {
-          // if navigation fails, attempt to copy the message to clipboard
-          const copied = await copyToClipboard(plain).catch(() => false);
-          if (!copied) alert('Could not open WhatsApp. The message was not copied either; please send manually.');
-        }
-      } else {
-        // Desktop flow: we opened placeholder windows earlier; navigate them
-        // now that we have URLs. Also copy to clipboard as fallback.
-        try {
-          if (whatsappWin) {
-            whatsappWin.location.href = whatsappUrl;
-            whatsappWin.focus();
-          } else {
-            window.open(whatsappUrl, '_blank');
-          }
-        } catch (e) { /* ignore */ }
-
-        const copied = await copyToClipboard(plain).catch(() => false);
-
-        // Navigate to the ticket PDF after a short delay so the WhatsApp window
-        // has time to load and the browser doesn't consider both popups abusive.
-        const TICKET_NAV_DELAY_MS = 700;
-        if (body.ticketUrl) {
-          setTimeout(() => {
-            try {
-              if (ticketWin) {
-                ticketWin.location.href = body.ticketUrl;
-                ticketWin.focus();
-              } else {
-                window.open(body.ticketUrl, '_blank');
-              }
-            } catch (e) { /* ignore */ }
-          }, TICKET_NAV_DELAY_MS);
-        } else {
-          try { ticketWin?.close(); } catch (e) { /* ignore */ }
-        }
-
-        if (!copied) {
-          alert('Message could not be copied to clipboard. If WhatsApp did not open, paste the message manually.');
-        } else {
-          console.info('WhatsApp opened and message copied to clipboard. Ticket will open in a new tab.');
-        }
-      }
-
+      setTicketUrl(null);
+      alert('Registration complete — ticket will be emailed to you shortly.');
+      if (onSuccess) onSuccess('');
     } catch (err: any) {
       setError(String(err.message || err));
     } finally {

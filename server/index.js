@@ -6,6 +6,9 @@ const path = require('path');
 const puppeteer = require('puppeteer-core');
 const QRCode = require('qrcode');
 
+const mysql = require('mysql2/promise');
+const nodemailer = require('nodemailer');
+
 function sleep(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
 
 const cors = require('cors');
@@ -16,6 +19,78 @@ app.use(bodyParser.json({ limit: '2mb' }));
 const PORT = process.env.PORT || 3333;
 const TMP_DIR = path.join(__dirname, 'tmp');
 if (!fs.existsSync(TMP_DIR)) fs.mkdirSync(TMP_DIR, { recursive: true });
+
+// Database pool (MySQL). Configure via .env: DB_HOST, DB_USER, DB_PASSWORD, DB_NAME
+const dbPool = mysql.createPool({
+  host: process.env.DB_HOST || '127.0.0.1',
+  user: process.env.DB_USER || 'root',
+  password: process.env.DB_PASSWORD || '',
+  database: process.env.DB_NAME || 'kickstart',
+  waitForConnections: true,
+  connectionLimit: 10,
+});
+
+async function ensureRegistrationsTable() {
+  try {
+    await dbPool.execute(`
+      CREATE TABLE IF NOT EXISTS registrations (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        ticket_filename VARCHAR(255) NOT NULL,
+        fullname VARCHAR(255),
+        email VARCHAR(255),
+        phone VARCHAR(64),
+        sector VARCHAR(128),
+        role VARCHAR(128),
+        registration_date DATETIME
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    `);
+  } catch (e) {
+    console.warn('Failed to ensure registrations table', e && e.message ? e.message : e);
+  }
+}
+
+async function saveRegistrationToDb(reg, filename) {
+  try {
+    await ensureRegistrationsTable();
+    const sql = 'INSERT INTO registrations (ticket_filename, fullname, email, phone, sector, role, registration_date) VALUES (?,?,?,?,?,?,?)';
+    const params = [filename, reg.fullname || null, reg.email || null, reg.phone || null, reg.sector || null, reg.role || null, new Date()];
+    await dbPool.execute(sql, params);
+    console.log('Saved registration to DB for', reg.email || reg.fullname);
+  } catch (e) {
+    console.warn('Failed to save registration to DB', e && e.message ? e.message : e);
+  }
+}
+
+// Send email with attachment using SMTP. Configure via .env: SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, SMTP_SECURE
+async function sendEmailWithAttachment(toEmail, subject, text, attachmentPath) {
+  if (!toEmail) return;
+  const host = process.env.SMTP_HOST;
+  if (!host) {
+    console.warn('SMTP not configured; skipping email send');
+    return;
+  }
+  try {
+    const transporter = nodemailer.createTransport({
+      host: process.env.SMTP_HOST,
+      port: parseInt(process.env.SMTP_PORT || '587', 10),
+      secure: process.env.SMTP_SECURE === 'true',
+      auth: process.env.SMTP_USER ? { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS } : undefined,
+    });
+
+    const mailOpts = {
+      from: process.env.EMAIL_FROM || (process.env.SMTP_USER || 'no-reply@example.com'),
+      to: toEmail,
+      subject: subject || 'Your Kickstart ticket',
+      text: text || 'Please find your ticket attached.',
+      attachments: attachmentPath && fs.existsSync(attachmentPath) ? [{ filename: path.basename(attachmentPath), path: attachmentPath }] : [],
+    };
+
+    const info = await transporter.sendMail(mailOpts);
+    console.log('Email sent:', info && info.messageId ? info.messageId : info);
+  } catch (e) {
+    console.warn('Failed to send email', e && e.message ? e.message : e);
+  }
+}
 
 let browserPromise = null;
 // simple promise queue to serialize browser tasks (avoid concurrent newPage races)
@@ -324,10 +399,27 @@ app.post('/register', async (req, res) => {
 
     const messageText = `New registration:\nName: ${fullname}\nEmail: ${email}\nPhone: ${phone}\nSector: ${sector || '-'}\nRole: ${role || '-'}\nEvent: ${process.env.EVENT_TITLE || 'Kickstart 2026'}`;
 
-    // By default attempt to auto-send WhatsApp messages via WhatsApp Web automation.
-    // Set AUTOSEND_WHATSAPP=false in the .env to disable automated sends.
-    if (process.env.AUTOSEND_WHATSAPP !== 'false') {
-      // fire-and-forget to avoid blocking the HTTP response
+    // Save registration to database (best-effort) and email participant the generated PDF.
+    (async () => {
+      try {
+        await saveRegistrationToDb(reg, filename);
+      } catch (e) {
+        console.warn('Failed saving registration to DB', e);
+      }
+
+      try {
+        // Try to email the participant the generated PDF if SMTP is configured
+        const participantEmail = reg.email;
+        const subject = `Your ticket for ${process.env.EVENT_TITLE || 'Kickstart 2026'}`;
+        const text = `Hi ${reg.fullname || ''},\n\nAttached is your ticket for ${process.env.EVENT_TITLE || 'Kickstart 2026'}.\n\nRegards,\nKickstart Team`;
+        await sendEmailWithAttachment(participantEmail, subject, text, out);
+      } catch (e) {
+        console.warn('Failed sending ticket email to participant', e);
+      }
+    })();
+
+    // WhatsApp automation is now opt-in. Set AUTOSEND_WHATSAPP=true to enable it.
+    if (process.env.AUTOSEND_WHATSAPP === 'true') {
       (async () => {
         try {
           await sendWhatsAppMessage(organiserNumber, messageText, out);

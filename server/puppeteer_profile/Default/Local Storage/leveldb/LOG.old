@@ -1,3 +1,5 @@
-2025/10/23-12:43:25.855 5e84 Reusing MANIFEST C:\xampp\htdocs\kickstart\server\puppeteer_profile\Default\Local Storage\leveldb/MANIFEST-000001
-2025/10/23-12:43:25.863 5e84 Recovering log #10
-2025/10/23-12:43:25.867 5e84 Reusing old log C:\xampp\htdocs\kickstart\server\puppeteer_profile\Default\Local Storage\leveldb/000010.log 
+2026/01/03-21:31:10.220 2c9c Reusing MANIFEST C:\xampp\htdocs\kickstart\server\puppeteer_profile\Default\Local Storage\leveldb/MANIFEST-000001
+2026/01/03-21:31:10.229 2c9c Recovering log #10
+2026/01/03-21:31:10.230 2c9c Level-0 table #13: started
+2026/01/03-21:31:10.430 2c9c Level-0 table #13: 17799 bytes OK
+2026/01/03-21:31:11.825 2c9c Delete type=0 #10

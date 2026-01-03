@@ -71,3 +71,56 @@ Yes, you can!
 To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
 
 Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+
+## Deploying the server on Render (Docker / Puppeteer)
+
+If you plan to run Puppeteer (Chromium) on Render so the server can auto-send WhatsApp messages, deploy the server as a Docker Web Service with Root Directory set to `server`.
+
+Quick checklist:
+
+- Root Directory: `server`
+- Dockerfile path: `server/Dockerfile` (already included in this repo)
+- Branch: `main`
+- Environment variables (set these in the Render dashboard for the service):
+	- `AUTOSEND_WHATSAPP` — `true` to enable automation, `false` to disable
+	- `PUPPETEER_EXECUTABLE_PATH` — `/usr/bin/chromium`
+	- `PUPPETEER_USER_DATA_DIR` — persistent path (recommended to use a Render Disk), e.g. `/var/render/disks/puppeteer_profile`
+	- `PORT` — `3333`
+	- `HOST` — the public URL of the Docker service (update after deploy)
+
+Persistent WhatsApp sessions
+- WhatsApp Web stores login state inside the Chromium user-data directory. To keep the session across restarts you must attach a persistent disk to the Render service and set `PUPPETEER_USER_DATA_DIR` to the disk mount path.
+
+Seeding a Puppeteer profile (recommended workflow)
+
+1. Locally (on your development machine) create a tarball of a logged-in Chrome/Chromium profile folder:
+
+	 - macOS / Linux example (adjust path to your Chrome profile):
+
+		 ```bash
+		 tar -czf profile.tgz -C "/path/to/Chrome/User Data" Default
+		 ```
+
+	 - Windows (PowerShell example, adjust path):
+
+		 ```powershell
+		 cd "%LOCALAPPDATA%\Google\Chrome\User Data"
+		 tar -czf profile.tgz Default
+		 ```
+
+2. Upload `profile.tgz` to a place the Render instance can download from (private object storage, GitHub release asset, or an S3-compatible URL).
+
+3. Use the Render Shell for the Docker service to download and extract the profile onto the attached disk. This repo includes a helper script at `server/scripts/restore_profile.sh` that you can run inside the container:
+
+	 ```bash
+	 # from Render Shell or via `render shell` (adjust URL and dest as needed)
+	 /bin/sh /app/scripts/restore_profile.sh "https://example.com/profile.tgz"
+	 ```
+
+4. Ensure file permissions are correct and restart the service. With the profile present, Puppeteer should be able to use the stored WhatsApp Web session to send messages automatically.
+
+Notes and cautions
+- Storing and reusing authenticated browser profiles has security implications; treat the profile tarball as a sensitive artifact.
+- Automating WhatsApp Web can be fragile and may break if WhatsApp changes the UI. Monitor logs for failures and rate-limiting.
+- If you prefer not to manage profiles yet, keep `AUTOSEND_WHATSAPP=false` and rely on client-side wa.me links for users to open WhatsApp manually.
+
