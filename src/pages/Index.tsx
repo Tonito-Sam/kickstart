@@ -15,6 +15,7 @@ import lydiaImg from "@/assets/Lydia Tonito-Samuel.png";
 import dianaImg from "@/assets/Diana Wallah-TSV.jpeg";
 import claudeImg from "@/assets/Claude-Mashego.png";
 import ianImg from "@/assets/Dr.Ian Joule.jpeg";
+import denisImg from "@/assets/Denis Aculay.png";
 import nexsqImg from "@/assets/nexsq.png";
 import g01 from "@/assets/01.png";
 import g02 from "@/assets/02.png";
@@ -211,7 +212,7 @@ const Index = () => {
   { name: "Diana Wallah-TSV", role: "Founder & Principal Consultant, Mishimi Consulting", topic: "Where Else Is Money Outside Tech & AI", blurb: "Exploring high-growth sectors beyond tech and AI and practical entry strategies.", image: dianaImg, linkedin: "https://www.linkedin.com/in/diana-wallah", instagram: "https://www.instagram.com/dianawallah", tiktok: "https://www.tiktok.com/@dianawallah", nexsq: "https://nexsq.com/profile/diana" },
   { name: "Dr. Ian Joule", role: "Executive Director, Diamond Information Systems", topic: "The Science of Scale", blurb: "Using data analytics and decision intelligence to drive measurable growth and profitability.", image: ianImg, linkedin: "https://www.linkedin.com/in/ian-joule", instagram: "https://www.instagram.com/ianjoule", tiktok: "https://www.tiktok.com/@ianjoule", nexsq: "https://nexsq.com/profile/ian" },
   { name: "Tonito Samuel", role: "Convener, Kickstart Conference & Founder, Nexsq", topic: "Systems & Structures", blurb: "Practical frameworks for turning goals into repeatable, systemized outcomes." , featured: true, image: tonitoImg, linkedin: "https://www.linkedin.com/in/tonito-samuel", instagram: "https://www.instagram.com/tonitosamuel", tiktok: "https://www.tiktok.com/@tonitosamuel", nexsq: "https://nexsq.com/profile/tonito"},
-  { name: "To Be Announced", role: "TBA", topic: "The Power Network", blurb: "Building influential networks that fund and fuel your vision.", image: '' , linkedin: "https://www.linkedin.com/company/kickstart-events", instagram: "https://www.instagram.com/kickstart.events", tiktok: "https://www.tiktok.com/@kickstart.events", nexsq: "https://nexsq.com/profile/kickstart"},
+  { name: "Denis Aculay", role: "Chief Director, MyArts International", topic: "The Power Network", blurb: "Building influential networks that fund and fuel your vision.", image: denisImg, linkedin: "", instagram: "", tiktok: "", nexsq: "" },
   ];
 
   const featuredSpeaker = speakers.find(s => s.featured) || null;
@@ -535,10 +536,10 @@ const Index = () => {
                     image: petrusImg,
                   },
                   { 
-                    name: "To Be Announced",
-                    role: "TBA",
-                    quote: "The Power Network — building relationships that fund and fuel your vision",
-                    image: ''
+                    name: "Denis Aculay",
+                    role: "Speaker",
+                    quote: "TBA",
+                    image: denisImg
                   },
                 ].map((speaker, index) => (
                   <CarouselItem key={index} className="pl-4 md:basis-1/2 lg:basis-1/3">
