@@ -140,12 +140,12 @@ async function sendTicketEmail(toEmail, fullname, ticketPath, ticketUrl, ticketI
     <div class="container">
         <div class="header">
             <h1>KICKSTART 2026</h1>
-            <p>Google Up Growth</p>
+            <p>Building Systems Beyond Goals</p>
         </div>
         
         <div class="content">
             <h2>Hello ${fullname},</h2>
-            <p>Thank you for registering for <strong>Kickstart 2026: Google Up Growth</strong>! Your registration has been confirmed and your ticket is ready.</p>
+            <p>Thank you for registering for <strong>Kickstart 2026: Building Systems Beyond Goals</strong>! Your registration has been confirmed and your ticket is ready.</p>
             
             <div class="ticket-info">
                 <h3 style="margin-top: 0; color: #3B82F6;">🎫 Your Ticket Details</h3>
@@ -156,7 +156,7 @@ async function sendTicketEmail(toEmail, fullname, ticketPath, ticketUrl, ticketI
                     </div>
                     <div class="detail-item">
                         <div class="detail-label">Event:</div>
-                        <div class="detail-value">Kickstart 2026 - Google Up Growth</div>
+                        <div class="detail-value">Kickstart 2026 - Building Systems Beyond Goals</div>
                     </div>
                     <div class="detail-item">
                         <div class="detail-label">Date:</div>
@@ -188,7 +188,7 @@ async function sendTicketEmail(toEmail, fullname, ticketPath, ticketUrl, ticketI
                 <p><strong>Please bring:</strong></p>
                 <ul>
                     <li>This ticket (printed or on your phone)</li>
-                    <li>Valid photo ID</li>
+                   
                     <li>Business cards for networking</li>
                 </ul>
                 <p><strong>Registration opens at 7:30 AM</strong></p>
@@ -205,7 +205,7 @@ async function sendTicketEmail(toEmail, fullname, ticketPath, ticketUrl, ticketI
         </div>
         
         <div class="footer">
-            <p>Kickstart 2026 • Google Up Growth</p>
+            <p>Kickstart 2026 • Building Systems Beyond Goals</p>
             <p>January 24, 2026 • 8:00 AM - 2:00 PM</p>
             <p>The Knowledge Base, Sandton</p>
             <p><a href="mailto:event@kickstartevents.co.za">event@kickstartevents.co.za</a> • <a href="tel:+27123456789">+27 12 345 6789</a></p>
@@ -482,7 +482,7 @@ async function generateTicketPDF(reg, filename) {
          });
       
       doc.fontSize(20)
-         .text('Google Up Growth', {
+         .text('Building Systems Beyond Goals', {
            align: 'center',
            y: 80
          });
@@ -576,12 +576,14 @@ async function generateTicketPDF(reg, filename) {
          .fillColor('#64748B')
          .text('SCAN FOR ENTRY', qrX + 10, qrY + 130, { width: 100, align: 'center' });
 
-      // Ticket ID
+      // Ticket ID - place dynamically after the event details to avoid overlap
       const ticketId = filename.replace('.pdf', '').toUpperCase();
+      // yPos was incremented while rendering event details; place ticket id below it
+      const ticketIdY = Math.max(yPos + 20, 450);
       doc.fillColor('#3B82F6')
-         .fontSize(14)
-         .font('Helvetica-Bold')
-         .text(`TICKET ID: ${ticketId}`, 50, 450);
+        .fontSize(14)
+        .font('Helvetica-Bold')
+        .text(`TICKET ID: ${ticketId}`, 50, ticketIdY);
 
       // Footer with important info
       doc.moveTo(50, 480)
@@ -592,7 +594,7 @@ async function generateTicketPDF(reg, filename) {
       
       doc.fontSize(10)
          .fillColor('#64748B')
-         .text('IMPORTANT: Please bring this ticket (printed or digital) and a valid ID to the registration desk.', 
+         .text('IMPORTANT: Please bring this ticket (printed or digital) to the registration desk.', 
                50, 490, { width: 500 });
       
       doc.text(`Generated on ${new Date().toLocaleDateString('en-US', { 
@@ -627,7 +629,7 @@ function generateSimpleTicket(reg, filename) {
 ╔════════════════════════════════════════════════════════════════════════════════╗
 ║                                                                                ║
 ║                              KICKSTART 2026                                    ║
-║                             Google Up Growth                                   ║
+║                         Building Systems Beyond Goals                          ║
 ║                                                                                ║
 ╠════════════════════════════════════════════════════════════════════════════════╣
 ║                                                                                ║
@@ -709,6 +711,34 @@ app.get('/test-db', async (req, res) => {
   }
 });
 
+// Admin alias for compatibility with earlier endpoints
+app.get('/admin/test-db', async (req, res) => {
+  try {
+    const [rows] = await dbPool.query('SELECT COUNT(*) as count FROM registrations');
+    const [columns] = await dbPool.query('DESCRIBE registrations');
+
+    res.json({
+      success: true,
+      table: 'registrations',
+      rowCount: rows[0].count,
+      columns: columns.map(c => ({ 
+        name: c.Field, 
+        type: c.Type,
+        nullable: c.Null === 'YES'
+      })),
+      connection: 'active'
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error.message,
+      code: error.code,
+      errno: error.errno,
+      sqlState: error.sqlState
+    });
+  }
+});
+
 app.get('/test-email', async (req, res) => {
   if (!transporter) {
     return res.status(400).json({
@@ -730,6 +760,41 @@ app.get('/test-email', async (req, res) => {
     
     const info = await transporter.sendMail(mailOptions);
     
+    res.json({
+      success: true,
+      message: 'Test email sent successfully',
+      messageId: info.messageId,
+      recipient: testEmail
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// Admin alias for email test
+app.get('/admin/test-email', async (req, res) => {
+  if (!transporter) {
+    return res.status(400).json({
+      success: false,
+      error: 'Email service not configured'
+    });
+  }
+
+  try {
+    const testEmail = req.query.email || 'test@example.com';
+    const mailOptions = {
+      from: `"Kickstart 2026" <${process.env.EMAIL_FROM || 'event@kickstartevents.co.za'}>`,
+      to: testEmail,
+      subject: '✅ Kickstart 2026 - Email Test',
+      text: 'This is a test email from the Kickstart 2026 ticket server.',
+      html: '<h2>✅ Email Test Successful</h2><p>This is a test email from the Kickstart 2026 ticket server.</p>'
+    };
+
+    const info = await transporter.sendMail(mailOptions);
+
     res.json({
       success: true,
       message: 'Test email sent successfully',
