@@ -5,7 +5,10 @@ const fs = require('fs');
 const path = require('path');
 const mysql = require('mysql2/promise');
 const QRCode = require('qrcode');
-const { chromium } = require('playwright-chromium');
+const PDFDocument = require('pdfkit'); // REPLACED PLAYWRIGHT WITH PDFKIT
+// Note: puppeteer-core is only required lazily inside WhatsApp helpers when
+// `AUTOSEND_WHATSAPP` is enabled. This allows the server to run without
+// browser binaries when automation is disabled.
 const nodemailer = require('nodemailer');
 
 const cors = require('cors');
@@ -24,7 +27,6 @@ console.log('Runtime env:', {
   DB_NAME: process.env.DB_NAME,
   HOST: process.env.HOST,
   AUTOSEND_WHATSAPP: process.env.AUTOSEND_WHATSAPP,
-  PUPPETEER_EXECUTABLE_PATH: process.env.PUPPETEER_EXECUTABLE_PATH,
 });
 
 // ======================
@@ -406,498 +408,189 @@ async function saveRegistrationToDb(reg, filename) {
 }
 
 // ======================
-// PDF GENERATION WITH PLAYWRIGHT
+// PDF GENERATION WITH PDFKIT (RENDER COMPATIBLE)
 // ======================
 async function generateTicketPDF(reg, filename) {
   const ticketPath = path.join(TMP_DIR, filename);
   console.log(`🎫 Generating PDF ticket: ${filename}`);
   
-  try {
-    // Generate QR code for ticket
-    let qrCodeDataURL = '';
+  return new Promise(async (resolve, reject) => {
     try {
-      const qrData = `KICKSTART2026:${filename.replace('.pdf', '')}:${reg.fullname}:${reg.email}`;
-      qrCodeDataURL = await QRCode.toDataURL(qrData, {
-        width: 300,
-        margin: 2,
-        color: {
-          dark: '#3B82F6',
-          light: '#FFFFFF'
-        }
+      // Generate QR code
+      let qrCodeBuffer = null;
+      try {
+        const qrData = `KICKSTART2026:${filename.replace('.pdf', '')}:${reg.fullname}:${reg.email}`;
+        qrCodeBuffer = await QRCode.toBuffer(qrData, {
+          width: 200,
+          margin: 2,
+          color: {
+            dark: '#3B82F6',
+            light: '#FFFFFF'
+          }
+        });
+      } catch (qrError) {
+        console.warn('⚠️ QR code generation failed:', qrError.message);
+      }
+
+      // Create PDF document
+      const doc = new PDFDocument({
+        size: 'A4',
+        margin: 50,
+        bufferPages: true
       });
-    } catch (qrError) {
-      console.warn('⚠️ QR code generation failed:', qrError.message);
-    }
 
-    const htmlContent = `
-<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="UTF-8">
-    <title>Kickstart 2026 Ticket</title>
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
-        
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        
-        body {
-            font-family: 'Inter', sans-serif;
-            background: linear-gradient(135deg, #0F172A 0%, #1E293B 100%);
-            min-height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 40px;
-        }
-        
-        .ticket-container {
-            width: 100%;
-            max-width: 1000px;
-        }
-        
-        .ticket {
-            background: linear-gradient(145deg, #FFFFFF 0%, #F8FAFC 100%);
-            border-radius: 28px;
-            box-shadow: 0 25px 70px rgba(0, 0, 0, 0.25);
-            overflow: hidden;
-            position: relative;
-            border: 1px solid rgba(255, 255, 255, 0.2);
-        }
-        
-        .ticket-header {
-            background: linear-gradient(90deg, #3B82F6 0%, #8B5CF6 100%);
-            color: white;
-            padding: 50px 60px;
-            position: relative;
-            overflow: hidden;
-            text-align: center;
-        }
-        
-        .ticket-header::before {
-            content: '';
-            position: absolute;
-            top: -100px;
-            right: -100px;
-            width: 400px;
-            height: 400px;
-            background: rgba(255, 255, 255, 0.1);
-            border-radius: 50%;
-        }
-        
-        .ticket-header::after {
-            content: '';
-            position: absolute;
-            bottom: -50px;
-            left: -50px;
-            width: 250px;
-            height: 250px;
-            background: rgba(255, 255, 255, 0.05);
-            border-radius: 50%;
-        }
-        
-        .event-year {
-            font-size: 18px;
-            font-weight: 600;
-            letter-spacing: 4px;
-            text-transform: uppercase;
-            margin-bottom: 15px;
-            opacity: 0.9;
-            position: relative;
-            z-index: 2;
-        }
-        
-        .event-title {
-            font-size: 56px;
-            font-weight: 900;
-            line-height: 1;
-            margin-bottom: 12px;
-            letter-spacing: -1px;
-            position: relative;
-            z-index: 2;
-            text-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-        }
-        
-        .event-subtitle {
-            font-size: 26px;
-            font-weight: 400;
-            opacity: 0.95;
-            margin-bottom: 30px;
-            position: relative;
-            z-index: 2;
-        }
-        
-        .ticket-content {
-            display: grid;
-            grid-template-columns: 1.5fr 1fr;
-            gap: 50px;
-            padding: 60px;
-            position: relative;
-        }
-        
-        .divider {
-            position: absolute;
-            right: 420px;
-            top: 60px;
-            bottom: 60px;
-            width: 2px;
-            background: linear-gradient(to bottom, transparent, #E2E8F0, transparent);
-        }
-        
-        .info-section {
-            margin-bottom: 45px;
-        }
-        
-        .section-title {
-            display: flex;
-            align-items: center;
-            gap: 15px;
-            font-size: 20px;
-            font-weight: 800;
-            color: #3B82F6;
-            margin-bottom: 30px;
-            text-transform: uppercase;
-            letter-spacing: 1.5px;
-        }
-        
-        .section-title::before {
-            content: '';
-            width: 30px;
-            height: 4px;
-            background: #3B82F6;
-            border-radius: 2px;
-        }
-        
-        .info-grid {
-            display: grid;
-            gap: 25px;
-        }
-        
-        .info-item {
-            display: flex;
-            gap: 20px;
-            padding-bottom: 20px;
-            border-bottom: 1px solid #F1F5F9;
-        }
-        
-        .info-item:last-child {
-            border-bottom: none;
-        }
-        
-        .info-label {
-            min-width: 140px;
-            font-weight: 700;
-            color: #475569;
-            font-size: 15px;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-        
-        .info-value {
-            flex: 1;
-            font-weight: 600;
-            color: #1E293B;
-            font-size: 17px;
-        }
-        
-        .qr-section {
-            background: #F8FAFC;
-            border-radius: 20px;
-            padding: 40px;
-            text-align: center;
-            width: 100%;
-            border: 3px dashed #E2E8F0;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05);
-        }
-        
-        .qr-code {
-            width: 260px;
-            height: 260px;
-            margin: 0 auto 25px;
-            border-radius: 16px;
-            overflow: hidden;
-            box-shadow: 0 12px 32px rgba(0, 0, 0, 0.1);
-            border: 2px solid white;
-        }
-        
-        .scan-text {
-            font-size: 16px;
-            color: #64748B;
-            font-weight: 600;
-            margin-bottom: 15px;
-            letter-spacing: 1px;
-        }
-        
-        .ticket-id {
-            background: linear-gradient(90deg, #3B82F6, #8B5CF6);
-            color: white;
-            padding: 15px 30px;
-            border-radius: 16px;
-            font-family: 'Courier New', monospace;
-            font-weight: 700;
-            letter-spacing: 2px;
-            font-size: 16px;
-            margin-top: 25px;
-            display: inline-block;
-            box-shadow: 0 5px 15px rgba(59, 130, 246, 0.3);
-        }
-        
-        .event-details {
-            display: grid;
-            gap: 20px;
-            margin-top: 50px;
-            background: #F1F5F9;
-            padding: 30px;
-            border-radius: 16px;
-        }
-        
-        .detail-item {
-            display: flex;
-            align-items: center;
-            gap: 15px;
-            color: #1E293B;
-            font-weight: 600;
-            font-size: 16px;
-        }
-        
-        .detail-icon {
-            color: #3B82F6;
-            width: 24px;
-            height: 24px;
-            flex-shrink: 0;
-        }
-        
-        .ticket-footer {
-            background: #F1F5F9;
-            padding: 35px 60px;
-            border-top: 2px solid #E2E8F0;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-        
-        .terms {
-            font-size: 14px;
-            color: #64748B;
-            max-width: 500px;
-            line-height: 1.6;
-        }
-        
-        .footer-logo {
-            font-weight: 900;
-            font-size: 24px;
-            color: #3B82F6;
-            letter-spacing: -1px;
-        }
-        
-        .security-strip {
-            background: repeating-linear-gradient(
-                45deg,
-                transparent,
-                transparent 15px,
-                rgba(59, 130, 246, 0.15) 15px,
-                rgba(59, 130, 246, 0.15) 30px
-            );
-            height: 6px;
-            margin: 0 60px;
-        }
-        
-        .watermark {
-            position: absolute;
-            bottom: 20px;
-            right: 20px;
-            font-size: 12px;
-            color: rgba(100, 116, 139, 0.3);
-            font-weight: 600;
-        }
-        
-        @media print {
-            body {
-                background: white !important;
-                padding: 0 !important;
-                margin: 0 !important;
-            }
-            
-            .ticket {
-                box-shadow: none !important;
-                border: 3px solid #E2E8F0 !important;
-                border-radius: 0 !important;
-                width: 100% !important;
-                max-width: 100% !important;
-                margin: 0 !important;
-            }
-            
-            .ticket-header {
-                -webkit-print-color-adjust: exact !important;
-                print-color-adjust: exact !important;
-            }
-            
-            .qr-section {
-                border: 3px solid #E2E8F0 !important;
-            }
-        }
-    </style>
-</head>
-<body>
-    <div class="ticket-container">
-        <div class="ticket">
-            <div class="security-strip"></div>
-            
-            <div class="ticket-header">
-                <div class="event-year">EXCLUSIVE ADMIT ONE</div>
-                <h1 class="event-title">KICKSTART 2026</h1>
-                <h2 class="event-subtitle">Google Up Growth</h2>
-            </div>
-            
-            <div class="ticket-content">
-                <div class="divider"></div>
-                
-                <div class="info-column">
-                    <div class="info-section">
-                        <h3 class="section-title">Attendee Information</h3>
-                        <div class="info-grid">
-                            <div class="info-item">
-                                <div class="info-label">Full Name</div>
-                                <div class="info-value">${reg.fullname || 'Not provided'}</div>
-                            </div>
-                            <div class="info-item">
-                                <div class="info-label">Email</div>
-                                <div class="info-value">${reg.email || 'Not provided'}</div>
-                            </div>
-                            <div class="info-item">
-                                <div class="info-label">Phone</div>
-                                <div class="info-value">${reg.phone || 'Not provided'}</div>
-                            </div>
-                            <div class="info-item">
-                                <div class="info-label">Role</div>
-                                <div class="info-value">${reg.role || 'Not provided'}</div>
-                            </div>
-                            <div class="info-item">
-                                <div class="info-label">Company</div>
-                                <div class="info-value">${reg.company || 'Not provided'}</div>
-                            </div>
-                            <div class="info-item">
-                                <div class="info-label">Sector</div>
-                                <div class="info-value">${reg.sector || 'Not provided'}</div>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="info-section">
-                        <h3 class="section-title">Event Details</h3>
-                        <div class="event-details">
-                            <div class="detail-item">
-                                <svg class="detail-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
-                                </svg>
-                                <span><strong>Date:</strong> January 24, 2026</span>
-                            </div>
-                            <div class="detail-item">
-                                <svg class="detail-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                                </svg>
-                                <span><strong>Time:</strong> 8:00 AM - 2:00 PM</span>
-                            </div>
-                            <div class="detail-item">
-                                <svg class="detail-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path>
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path>
-                                </svg>
-                                <span><strong>Venue:</strong> The Knowledge Base<br>CNR 131, 33 Grossvenor Rd<br>Cumberland Ave, Bryanston, Sandton 2191</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="qr-column">
-                    <div class="qr-section">
-                        <div class="scan-text">SCAN FOR ENTRY</div>
-                        <div class="qr-code">
-                            ${qrCodeDataURL ? `<img src="${qrCodeDataURL}" style="width:100%;height:100%;" alt="QR Code">` : '<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;background:#3B82F6;color:white;font-weight:bold;">SCAN AT ENTRY</div>'}
-                        </div>
-                        <div class="ticket-id">
-                            ${filename.replace('.pdf', '').toUpperCase()}
-                        </div>
-                    </div>
-                    
-                    <div class="watermark">
-                        Generated on ${new Date().toLocaleDateString('en-US', { 
-                            year: 'numeric', 
-                            month: 'long', 
-                            day: 'numeric' 
-                        })}
-                    </div>
-                </div>
-            </div>
-            
-            <div class="ticket-footer">
-                <div class="terms">
-                    <strong>Important:</strong> Please bring this ticket (printed or digital) to the registration desk. This ticket is non-transferable and valid for one entry only. Lost tickets cannot be replaced.
-                </div>
-                <div class="footer-logo">
-                    #KICKSTART2026
-                </div>
-            </div>
-        </div>
-    </div>
-</body>
-</html>`;
+      const stream = fs.createWriteStream(ticketPath);
+      doc.pipe(stream);
 
-    const browser = await chromium.launch({ 
-      headless: true,
-      args: [
-        '--no-sandbox', 
-        '--disable-setuid-sandbox',
-        '--disable-dev-shm-usage',
-        '--disable-gpu'
-      ]
-    });
-    
-    const context = await browser.newContext({
-      viewport: { width: 1200, height: 1697 },
-      deviceScaleFactor: 2
-    });
-    
-    const page = await context.newPage();
-    await page.setContent(htmlContent, { 
-      waitUntil: 'networkidle',
-      timeout: 30000 
-    });
-    
-    await page.evaluate(() => document.fonts.ready);
-    
-    await page.pdf({
-      path: ticketPath,
-      width: '11.7in',
-      height: '16.5in',
-      printBackground: true,
-      preferCSSPageSize: false,
-      margin: {
-        top: '0.5in',
-        right: '0.5in',
-        bottom: '0.5in',
-        left: '0.5in'
-      },
-      scale: 1.0
-    });
-    
-    await browser.close();
-    
-    if (fs.existsSync(ticketPath)) {
-      const stats = fs.statSync(ticketPath);
-      console.log(`✅ PDF generated: ${ticketPath} (${stats.size} bytes)`);
-      return ticketPath;
-    } else {
-      throw new Error('PDF file was not created');
+      // Header with gradient effect
+      doc.rect(0, 0, doc.page.width, 120)
+         .fill('#3B82F6');
+      
+      doc.fillColor('white')
+         .fontSize(36)
+         .font('Helvetica-Bold')
+         .text('KICKSTART 2026', {
+           align: 'center',
+           y: 30
+         });
+      
+      doc.fontSize(20)
+         .text('Google Up Growth', {
+           align: 'center',
+           y: 80
+         });
+
+      // Divider line
+      doc.moveTo(50, 140)
+         .lineTo(550, 140)
+         .lineWidth(2)
+         .strokeColor('#3B82F6')
+         .stroke();
+
+      // Attendee Info Section
+      doc.fillColor('#1E293B')
+         .fontSize(18)
+         .font('Helvetica-Bold')
+         .text('ATTENDEE INFORMATION', 50, 160);
+      
+      doc.font('Helvetica')
+         .fontSize(12)
+         .fillColor('#475569');
+      
+      let yPos = 190;
+      const infoFields = [
+        { label: 'Full Name:', value: reg.fullname || 'Not provided' },
+        { label: 'Email:', value: reg.email || 'Not provided' },
+        { label: 'Phone:', value: reg.phone || 'Not provided' },
+        { label: 'Role:', value: reg.role || 'Not provided' },
+        { label: 'Company:', value: reg.company || 'Not provided' },
+        { label: 'Sector:', value: reg.sector || 'Not provided' }
+      ];
+
+      infoFields.forEach(field => {
+        doc.text(`${field.label}`, 50, yPos);
+        doc.fillColor('#1E293B')
+           .text(field.value, 150, yPos);
+        doc.fillColor('#475569');
+        yPos += 22;
+      });
+
+      // Event Details Section
+      doc.moveTo(50, yPos + 10)
+         .lineTo(550, yPos + 10)
+         .lineWidth(1)
+         .strokeColor('#E2E8F0')
+         .stroke();
+      
+      yPos += 30;
+      
+      doc.font('Helvetica-Bold')
+         .fontSize(18)
+         .fillColor('#1E293B')
+         .text('EVENT DETAILS', 50, yPos);
+      
+      doc.font('Helvetica')
+         .fontSize(12)
+         .fillColor('#475569');
+      
+      yPos += 30;
+      const eventDetails = [
+        '📅 Date: January 24, 2026',
+        '⏰ Time: 8:00 AM - 2:00 PM',
+        '📍 Venue: The Knowledge Base',
+        '        CNR 131, 33 Grossvenor Rd',
+        '        Cumberland Ave, Bryanston',
+        '        Sandton 2191'
+      ];
+
+      eventDetails.forEach(detail => {
+        doc.text(detail, 50, yPos);
+        yPos += 20;
+      });
+
+      // QR Code Section (right side)
+      const qrX = 400;
+      const qrY = 200;
+      
+      if (qrCodeBuffer) {
+        doc.image(qrCodeBuffer, qrX, qrY, { width: 120, height: 120 });
+        doc.rect(qrX - 5, qrY - 5, 130, 130)
+           .stroke('#3B82F6')
+           .lineWidth(2);
+      } else {
+        doc.rect(qrX, qrY, 120, 120)
+           .fill('#3B82F6');
+        doc.fillColor('white')
+           .fontSize(12)
+           .text('SCAN AT ENTRY', qrX + 10, qrY + 50, { width: 100, align: 'center' });
+      }
+      
+      doc.fontSize(10)
+         .fillColor('#64748B')
+         .text('SCAN FOR ENTRY', qrX + 10, qrY + 130, { width: 100, align: 'center' });
+
+      // Ticket ID
+      const ticketId = filename.replace('.pdf', '').toUpperCase();
+      doc.fillColor('#3B82F6')
+         .fontSize(14)
+         .font('Helvetica-Bold')
+         .text(`TICKET ID: ${ticketId}`, 50, 450);
+
+      // Footer with important info
+      doc.moveTo(50, 480)
+         .lineTo(550, 480)
+         .lineWidth(1)
+         .strokeColor('#E2E8F0')
+         .stroke();
+      
+      doc.fontSize(10)
+         .fillColor('#64748B')
+         .text('IMPORTANT: Please bring this ticket (printed or digital) and a valid ID to the registration desk.', 
+               50, 490, { width: 500 });
+      
+      doc.text(`Generated on ${new Date().toLocaleDateString('en-US', { 
+        year: 'numeric', 
+        month: 'long', 
+        day: 'numeric' 
+      })} • #KICKSTART2026`, 50, 520);
+
+      doc.end();
+
+      stream.on('finish', () => {
+        const stats = fs.statSync(ticketPath);
+        console.log(`✅ PDF generated: ${ticketPath} (${stats.size} bytes)`);
+        resolve(ticketPath);
+      });
+
+      stream.on('error', (err) => {
+        reject(err);
+      });
+
+    } catch (error) {
+      console.error('❌ PDF generation failed:', error.message);
+      reject(error);
     }
-    
-  } catch (error) {
-    console.error('❌ PDF generation failed:', error.message);
-    return generateSimpleTicket(reg, filename);
-  }
+  });
 }
 
 function generateSimpleTicket(reg, filename) {
@@ -953,8 +646,10 @@ app.get('/health', (req, res) => {
     ok: true, 
     timestamp: new Date().toISOString(),
     server: 'kickstart-server',
-    version: '2.2.0',
+    version: '3.0.0',
     features: ['pdf-generation', 'database', 'qr-codes', 'email'],
+    pdf_engine: 'pdfkit',
+    render_compatible: true,
     email_enabled: !!transporter,
     database_configured: !!(process.env.DB_HOST && process.env.DB_USER && process.env.DB_PASSWORD && process.env.DB_NAME)
   });
@@ -1273,9 +968,10 @@ app.get('/', (req, res) => {
 <body>
     <div class="container">
         <h1>🎫 Kickstart 2026 Ticket Server</h1>
-        <p><strong>Status:</strong> <span class="success">Running</span></p>
+        <p><strong>Status:</strong> <span class="success">Running on Render</span></p>
         <p><strong>Database:</strong> <span class="${dbPool ? 'success' : 'warning'}">${dbPool ? 'Connected' : 'Not Connected'}</span></p>
         <p><strong>Email:</strong> <span class="${transporter ? 'success' : 'warning'}">${transporter ? 'Enabled' : 'Disabled'}</span></p>
+        <p><strong>PDF Engine:</strong> PDFKit (Render Compatible)</p>
         
         <h2>Endpoints:</h2>
         
@@ -1309,10 +1005,11 @@ app.get('/', (req, res) => {
 // ======================
 
 async function startServer() {
-  console.log('🚀 Starting Kickstart Server');
+  console.log('🚀 Starting Kickstart Server (Render Compatible)');
   console.log('='.repeat(60));
   console.log('📊 Database:', process.env.DB_NAME || 'Not configured');
   console.log('📧 Email:', transporter ? 'Enabled' : 'Disabled');
+  console.log('📄 PDF Engine: PDFKit (No browser required)');
   console.log('='.repeat(60));
   
   try {
