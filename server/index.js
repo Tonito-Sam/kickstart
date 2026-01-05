@@ -1,4 +1,15 @@
-require('dotenv').config();
+const dotenv = require('dotenv');
+
+// Load environment file based on NODE_ENV. Use `.env` for production and
+// `.env.development` for local development. Allow overriding with
+// `DOTENV_PATH` if needed.
+const envFile = (process.env.NODE_ENV === 'production') ? '.env' : (process.env.DOTENV_PATH || '.env.development');
+const envResult = dotenv.config({ path: envFile });
+if (envResult.error) {
+  console.warn(`No env file loaded from ${envFile}:`, envResult.error.message || envResult.error);
+} else {
+  console.log(`Loaded environment from ${envFile}`);
+}
 const express = require('express');
 const bodyParser = require('body-parser');
 const fs = require('fs');
