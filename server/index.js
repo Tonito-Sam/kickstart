@@ -17,6 +17,16 @@ const PORT = process.env.PORT || 3333;
 const TMP_DIR = path.join(__dirname, 'tmp');
 if (!fs.existsSync(TMP_DIR)) fs.mkdirSync(TMP_DIR, { recursive: true });
 
+// Log key runtime environment values (non-sensitive) for debugging in deploy logs
+console.log('Runtime env:', {
+  DB_HOST: process.env.DB_HOST,
+  DB_USER: process.env.DB_USER ? 'set' : 'unset',
+  DB_NAME: process.env.DB_NAME,
+  HOST: process.env.HOST,
+  AUTOSEND_WHATSAPP: process.env.AUTOSEND_WHATSAPP,
+  PUPPETEER_EXECUTABLE_PATH: process.env.PUPPETEER_EXECUTABLE_PATH,
+});
+
 // ======================
 // EMAIL CONFIGURATION
 // ======================
