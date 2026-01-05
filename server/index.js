@@ -29,7 +29,9 @@ app.use(bodyParser.json({ limit: '2mb' }));
 
 // Admin key protection: if `ADMIN_KEY` is set in env, require it for any
 // `/admin/*` routes. Accept the key via `X-Admin-Key` header or `?key=` query.
-const ADMIN_KEY = process.env.ADMIN_KEY;
+// Normalize the admin key by trimming surrounding quotes if present.
+const RAW_ADMIN_KEY = process.env.ADMIN_KEY;
+const ADMIN_KEY = RAW_ADMIN_KEY ? String(RAW_ADMIN_KEY).replace(/^['\"]|['\"]$/g, '') : undefined;
 function requireAdminKey(req, res, next) {
   if (!ADMIN_KEY) {
     // No admin key configured — allow access but log a warning
@@ -43,18 +45,17 @@ function requireAdminKey(req, res, next) {
   const bearerKey = authHeader && authHeader.replace(/^Bearer\s+/i, '');
 
   const provided = headerKey || queryKey || bearerKey;
-  // Safe debug logging (do not print secret values)
-  if (provided) {
-    if (provided === ADMIN_KEY) {
-      console.log('🔐 Admin key provided and matched');
-    } else {
-      console.log('🔐 Admin key provided but did not match');
-    }
+  const providedNormalized = provided ? String(provided).replace(/^['\"]|['\"]$/g, '') : null;
+
+  // Safe debug logging (do not print secret values). Log presence and lengths only.
+  if (providedNormalized) {
+    const match = providedNormalized === ADMIN_KEY;
+    console.log(`🔐 Admin key provided (len=${providedNormalized.length}) — match=${match}`);
   } else {
     console.log('🔐 No admin key provided with request');
   }
 
-  if (!provided || provided !== ADMIN_KEY) {
+  if (!providedNormalized || providedNormalized !== ADMIN_KEY) {
     return res.status(401).json({ success: false, error: 'Unauthorized: missing or invalid admin key' });
   }
 
