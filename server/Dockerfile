@@ -14,6 +14,9 @@ RUN npm install --production
 # Copy the server source into the image
 COPY . /app
 
+# Ensure production mode by default in the container
+ENV NODE_ENV=production
+
 # The container will use the port provided by the environment at runtime
 # (Render sets `PORT`, so we don't hardcode it here). Remove EXPOSE/ENV
 # to avoid confusing defaults — the app reads `process.env.PORT || 3333`.

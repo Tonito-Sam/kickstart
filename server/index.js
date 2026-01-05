@@ -1,15 +1,26 @@
 const dotenv = require('dotenv');
 
-// Load environment file based on NODE_ENV. Use `.env` for production and
-// `.env.development` for local development. Allow overriding with
-// `DOTENV_PATH` if needed.
-const envFile = (process.env.NODE_ENV === 'production') ? '.env' : (process.env.DOTENV_PATH || '.env.development');
-const envResult = dotenv.config({ path: envFile });
-if (envResult.error) {
-  console.warn(`No env file loaded from ${envFile}:`, envResult.error.message || envResult.error);
+// Only load dotenv in non-production to avoid overriding Render's environment.
+if (process.env.NODE_ENV !== 'production') {
+  const envPath = process.env.DOTENV_PATH || '.env.development';
+  const envResult = dotenv.config({ path: envPath });
+  if (envResult.error) {
+    console.warn(`No env file loaded from ${envPath}:`, envResult.error.message || envResult.error);
+  } else {
+    console.log(`Loaded environment from ${envPath}`);
+  }
 } else {
-  console.log(`Loaded environment from ${envFile}`);
+  console.log('Production mode: using environment variables provided by the host');
 }
+
+// Quick environment debug (non-sensitive): presence/length only
+console.log('Environment check:');
+console.log('- NODE_ENV:', process.env.NODE_ENV);
+console.log('- PORT:', process.env.PORT || 'not set');
+console.log('- DB_HOST:', process.env.DB_HOST ? 'set' : 'NOT SET');
+console.log('- DB_USER:', process.env.DB_USER ? 'set' : 'NOT SET');
+console.log('- DB_NAME:', process.env.DB_NAME ? 'set' : 'NOT SET');
+console.log('- ADMIN_KEY:', process.env.ADMIN_KEY ? `set (len=${String(process.env.ADMIN_KEY).length})` : 'NOT SET');
 const express = require('express');
 const bodyParser = require('body-parser');
 const fs = require('fs');
@@ -64,6 +75,27 @@ function requireAdminKey(req, res, next) {
 
 // Mount protection for admin routes
 app.use('/admin', requireAdminKey);
+
+// Environment check endpoint (non-sensitive) - placed before admin middleware
+app.get('/env-check', (req, res) => {
+  const env = {
+    NODE_ENV: process.env.NODE_ENV || null,
+    PORT: process.env.PORT || null,
+    DB_HOST: process.env.DB_HOST ? 'set' : 'NOT SET',
+    DB_USER: process.env.DB_USER ? 'set' : 'NOT SET',
+    DB_NAME: process.env.DB_NAME ? 'set' : 'NOT SET',
+    HOST: process.env.HOST || null,
+    ADMIN_KEY_SET: process.env.ADMIN_KEY ? 'YES' : 'NO',
+    AUTOSEND_WHATSAPP: process.env.AUTOSEND_WHATSAPP || null
+  };
+
+  res.json({
+    success: true,
+    environment: env,
+    timestamp: new Date().toISOString(),
+    note: 'This endpoint shows which environment variables are available (no secrets returned)'
+  });
+});
 
 const PORT = process.env.PORT || 3333;
 const TMP_DIR = path.join(__dirname, 'tmp');
@@ -1157,7 +1189,9 @@ async function startServer() {
     });
     
   } catch (error) {
-    console.error('❌ Startup failed:', error.message);
+    console.error('❌ Startup failed:', error.message || error);
+    console.error('❌ Error details:', error);
+    // Keep the process exiting so Render marks the deploy as failed when DB is unreachable
     process.exit(1);
   }
 }
