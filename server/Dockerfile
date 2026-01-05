@@ -14,13 +14,12 @@ RUN npm install --production
 # Copy the server source into the image
 COPY . /app
 
-# Expose the port the app listens on
-ENV PORT=3333
-
-EXPOSE 3333
+# The container will use the port provided by the environment at runtime
+# (Render sets `PORT`, so we don't hardcode it here). Remove EXPOSE/ENV
+# to avoid confusing defaults — the app reads `process.env.PORT || 3333`.
 
 # Run the server. By default we run `node index.js` (no X display).
 # If you enable WhatsApp automation (`AUTOSEND_WHATSAPP=true`) the container
 # will start the server under `xvfb-run` so Puppeteer can launch a headful
 # browser. This avoids Xvfb startup failures when the feature is disabled.
-CMD sh -c "if [ \"$AUTOSEND_WHATSAPP\" = \"true\" ]; then xvfb-run -s '-screen 0 1280x720x24' node index.js; else node index.js; fi"
+CMD ["node", "index.js"]
