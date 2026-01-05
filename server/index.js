@@ -27,6 +27,43 @@ const app = express();
 app.use(cors());
 app.use(bodyParser.json({ limit: '2mb' }));
 
+// Admin key protection: if `ADMIN_KEY` is set in env, require it for any
+// `/admin/*` routes. Accept the key via `X-Admin-Key` header or `?key=` query.
+const ADMIN_KEY = process.env.ADMIN_KEY;
+function requireAdminKey(req, res, next) {
+  if (!ADMIN_KEY) {
+    // No admin key configured — allow access but log a warning
+    console.warn('⚠️ ADMIN_KEY not set — admin endpoints are unprotected');
+    return next();
+  }
+
+  const headerKey = req.headers['x-admin-key'];
+  const queryKey = req.query && req.query.key;
+  const authHeader = req.get('Authorization');
+  const bearerKey = authHeader && authHeader.replace(/^Bearer\s+/i, '');
+
+  const provided = headerKey || queryKey || bearerKey;
+  // Safe debug logging (do not print secret values)
+  if (provided) {
+    if (provided === ADMIN_KEY) {
+      console.log('🔐 Admin key provided and matched');
+    } else {
+      console.log('🔐 Admin key provided but did not match');
+    }
+  } else {
+    console.log('🔐 No admin key provided with request');
+  }
+
+  if (!provided || provided !== ADMIN_KEY) {
+    return res.status(401).json({ success: false, error: 'Unauthorized: missing or invalid admin key' });
+  }
+
+  next();
+}
+
+// Mount protection for admin routes
+app.use('/admin', requireAdminKey);
+
 const PORT = process.env.PORT || 3333;
 const TMP_DIR = path.join(__dirname, 'tmp');
 if (!fs.existsSync(TMP_DIR)) fs.mkdirSync(TMP_DIR, { recursive: true });
