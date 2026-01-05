@@ -250,11 +250,27 @@ async function sendTicketEmail(toEmail, fullname, ticketPath, ticketUrl, ticketI
 // ======================
 // DATABASE CONFIG - UPDATED FOR LIVE SERVER
 // ======================
+// Normalize DB credentials: allow empty password (no password) for local dev
+const resolvedDbHost = process.env.DB_HOST ?? 'localhost';
+const resolvedDbUser = process.env.DB_USER ?? 'errandr1_kickstart';
+// If DB_PASSWORD is undefined, fall back to the production/default password.
+// If DB_PASSWORD is explicitly set to an empty string, treat that as "no password"
+// and pass `undefined` to the driver so it does not attempt password auth.
+let resolvedDbPassword;
+if (typeof process.env.DB_PASSWORD === 'undefined') {
+  resolvedDbPassword = 'NFhRRPX6m3WtsWYHQvuZ';
+} else if (process.env.DB_PASSWORD === '') {
+  resolvedDbPassword = undefined; // no password
+} else {
+  resolvedDbPassword = process.env.DB_PASSWORD;
+}
+const resolvedDbName = process.env.DB_NAME ?? 'errandr1_kickstart';
+
 const dbPool = mysql.createPool({
-  host: process.env.DB_HOST || 'localhost',
-  user: process.env.DB_USER || 'errandr1_kickstart',
-  password: process.env.DB_PASSWORD || 'NFhRRPX6m3WtsWYHQvuZ',
-  database: process.env.DB_NAME || 'errandr1_kickstart',
+  host: resolvedDbHost,
+  user: resolvedDbUser,
+  password: resolvedDbPassword,
+  database: resolvedDbName,
   waitForConnections: true,
   connectionLimit: 10,
   connectTimeout: 10000,
