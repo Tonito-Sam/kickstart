@@ -40,8 +40,8 @@ ENV PORT=3333
 
 EXPOSE 3333
 
-# Run the server under Xvfb so Puppeteer can launch a headful browser in the
-# container. The -s args create a single virtual display with a reasonable
-# resolution. We use `sh -c` so Render's Docker runner will execute the shell
-# wrapper correctly.
-CMD sh -c "xvfb-run -s '-screen 0 1280x720x24' node index.js"
+# Run the server. By default we run `node index.js` (no X display).
+# If you enable WhatsApp automation (`AUTOSEND_WHATSAPP=true`) the container
+# will start the server under `xvfb-run` so Puppeteer can launch a headful
+# browser. This avoids Xvfb startup failures when the feature is disabled.
+CMD sh -c "if [ \"$AUTOSEND_WHATSAPP\" = \"true\" ]; then xvfb-run -s '-screen 0 1280x720x24' node index.js; else node index.js; fi"
