@@ -42,7 +42,8 @@ app.use(bodyParser.json({ limit: '2mb' }));
 // `/admin/*` routes. Accept the key via `X-Admin-Key` header or `?key=` query.
 // Normalize the admin key by trimming surrounding quotes if present.
 const RAW_ADMIN_KEY = process.env.ADMIN_KEY;
-const ADMIN_KEY = RAW_ADMIN_KEY ? String(RAW_ADMIN_KEY).replace(/^['\"]|['\"]$/g, '') : undefined;
+// Trim surrounding whitespace and surrounding quotes if present
+const ADMIN_KEY = RAW_ADMIN_KEY ? String(RAW_ADMIN_KEY).replace(/^['"\s]+|['"\s]+$/g, '') : undefined;
 function requireAdminKey(req, res, next) {
   if (!ADMIN_KEY) {
     // No admin key configured — allow access but log a warning
@@ -56,7 +57,7 @@ function requireAdminKey(req, res, next) {
   const bearerKey = authHeader && authHeader.replace(/^Bearer\s+/i, '');
 
   const provided = headerKey || queryKey || bearerKey;
-  const providedNormalized = provided ? String(provided).replace(/^['\"]|['\"]$/g, '') : null;
+  const providedNormalized = provided ? String(provided).replace(/^['"\s]+|['"\s]+$/g, '') : null;
 
   // Safe debug logging (do not print secret values). Log presence and lengths only.
   if (providedNormalized) {
